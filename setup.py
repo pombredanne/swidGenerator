@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import io
 from setuptools import setup, find_packages
 from swid_generator import meta
 
-readme = open('README.rst').read()
+readme = io.open('README.rst', mode='r', encoding='utf8').read()
 
 setup(name='swid_generator',
       version=meta.version,
@@ -30,6 +31,7 @@ setup(name='swid_generator',
           'License :: OSI Approved :: MIT License',
           'Operating System :: POSIX :: Linux',
           'Programming Language :: Python :: 2',
+          'Programming Language :: Python :: 2.6',
           'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.3',

@@ -125,11 +125,16 @@ The following package managers are supported:
 - pacman (Arch Linux, Manjaro, ...)
 - rpm (Fedora, Red Hat, OpenSUSE, ...)
 
-The following Python versions are supported:
+The following Python versions are fully supported:
 
 - Python 2.7
 - Python 3.3+
 - PyPy
+
+Python 2.6 should also work, but you need to manually install the argparse
+library from the `Python Package Index
+<https://pypi.python.org/pypi/argparse/>`__ (or via your regular package
+manager).
 
 Install with pip
 ----------------
@@ -148,7 +153,9 @@ Manual Installation
 
 Get code::
 
-    $ git clone https://github.com/strongswan/swidGenerator
+    $ wget https://github.com/strongswan/swidGenerator/archive/v0.3.0.zip
+    $ unzip v0.3.0.zip
+    $ cd swidGenerator-0.3.0
 
 Install::
 
