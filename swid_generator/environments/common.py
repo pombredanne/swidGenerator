@@ -5,8 +5,9 @@ import os
 import stat
 import platform
 from distutils.spawn import find_executable
-import random
-import string
+from swid_generator.package_info import FileInfo
+from swid_generator.exceptions import RequirementsNotInstalledError
+from swid_generator.patches import unicode_patch
 
 
 class CommonEnvironment(object):
@@ -14,9 +15,10 @@ class CommonEnvironment(object):
     The common base for all environment classes.
     """
     executable = None
-    TEMP_FOLDER_NAME = '/tmp'
-    FOLDER_PREFIX = 'swid_'
-    CONFFILE_FILE_NAME = None
+    conffile_file_name = None
+    control_archive = None
+    required_packages_for_package_file_method = None
+    required_packages_for_sign_method = None
 
     @staticmethod
     def get_architecture():
@@ -28,10 +30,10 @@ class CommonEnvironment(object):
     @staticmethod
     def get_os_string():
         """
-        Return distribution string, e.g. 'debian_7.4'.
+        Return distribution string, e.g. 'Debian_7.4'.
         """
-        dist = '_'.join(filter(None, platform.dist()[:2]))
-        system = platform.system().lower()
+        dist = '_'.join(filter(None, platform.dist()[:2])).capitalize()
+        system = platform.system().capitalize()
         return dist or system or platform.os.name or 'unknown'
 
     @staticmethod
@@ -67,36 +69,68 @@ class CommonEnvironment(object):
         return True
 
     @classmethod
-    def _create_temp_folder(cls, package_path):
-        """
-        It creates a folder in the directory /tmp of the client/server.
-        This folder has the prefix "swid_". To this prefix a random generated String is appended to
-        prevent collisions of foldernames.
-
-        :param package_path: Path to the package
-        :return: A dictionary with the save options of the temporary folder.
-        """
-
-        random_string = ''.join(random.choice(string.ascii_letters) for _ in range(5))
-
-        if package_path[0] is not '/':
-            absolute_package_path = '/'.join((os.getcwd(), package_path))
-        else:
-            absolute_package_path = package_path
-
-        save_location_pathname = '/'.join((cls.TEMP_FOLDER_NAME, cls.FOLDER_PREFIX + random_string))
-
-        if not os.path.exists(save_location_pathname):
-            os.makedirs(save_location_pathname)
-
-        folder_information = {
-            'absolute_package_path': absolute_package_path,
-            'save_location': save_location_pathname
-        }
-
-        return folder_information
-
-    @classmethod
     def is_installed(cls):
         assert cls.executable is not None, 'Executable may not be None'
         return find_executable(cls.executable)
+
+    @classmethod
+    def get_files_from_folder(cls, evidence_path, new_root_path):
+        """
+        Get all files from a path on the filesystem
+
+        :param evidence_path: Path on the filesystem
+        :return: Lexicographical sorted List of FileInfo()-Objects
+        """
+        result_files = []
+        for dirpath, _, files in os.walk(evidence_path):
+            for file in files:
+                actual_path = '/'.join([unicode_patch(dirpath), unicode_patch(file)])
+                if new_root_path is not None:
+                    path_for_tag = actual_path.replace(unicode_patch(evidence_path), unicode_patch(new_root_path), 1)
+                    path_for_tag = path_for_tag.replace('//', '/')
+                    file_info = FileInfo(path_for_tag, actual_path=False)
+                    file_info.set_actual_path(actual_path)
+                else:
+                    file_info = FileInfo(actual_path)
+
+                result_files.append(file_info)
+        return result_files
+
+    @classmethod
+    def check_package_installed(cls, package_name):
+        """
+        Checks if the Package is installed on System
+        :param package_name: Name of the Package.
+        :return: None if the package is not installed and the executable if package is installed.
+        """
+        return find_executable(package_name)
+
+    @classmethod
+    def check_requirements(cls, package_file_execution=False, sign_tag_execution=False):
+        """
+        Checks if all the Linux-commands are installed for the required operations (e.g: get_files_from_packagefile or signxml).
+        If the Requirements are not met, a RequirementsNotInstalledError raises.
+        :param package_file_execution: Default: False. Choice between get_files_from_packagefile or signxml operation.
+        :param sign_tag_execution:
+        """
+        assert cls.required_packages_for_package_file_method is not None, 'List of required packages for package file execution may not be None'
+        assert cls.required_packages_for_sign_method is not None, 'List of required packages for sing execution may not be None'
+
+        not_installed_packages = list()
+
+        required_packages = list()
+
+        if package_file_execution is True:
+            required_packages.extend(cls.required_packages_for_package_file_method)
+
+        if sign_tag_execution is True:
+            required_packages.extend(cls.required_packages_for_sign_method)
+
+        for package in required_packages:
+            is_installed = cls.check_package_installed(package)
+
+            if is_installed is None:
+                not_installed_packages.append(package)
+
+        if len(not_installed_packages) != 0:
+            raise RequirementsNotInstalledError("Please install following packages: " + ",".join(not_installed_packages))
